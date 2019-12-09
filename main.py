@@ -1,18 +1,24 @@
-import maml_rl.envs
-import gym
-import numpy as np
-import torch
 import json
+from datetime import datetime
 from collections import defaultdict
 
+import gym
+import torch
+import wandb
+import numpy as np
+
+from tensorboardX import SummaryWriter
+
+import maml_rl.envs
 from maml_rl.metalearner import MetaLearner
 from maml_rl.policies import CategoricalMLPPolicy, NormalMLPPolicy
 from maml_rl.baseline import LinearFeatureBaseline
 from maml_rl.sampler import BatchSampler
 
-from tensorboardX import SummaryWriter
 
-import wandb
+def get_date_str():
+    d = datetime.now()
+    return f'{d.month}_{d.day}'
 
 
 def total_rewards(episodes_rewards, aggregation=torch.mean):
@@ -24,21 +30,27 @@ def total_rewards(episodes_rewards, aggregation=torch.mean):
 def get_success_rate(episodes_infos, per_task=False):
     """
     :param episodes_infos: nested lists (n_tasks, n_episodes, n_timestemps) of dicts
+                           i.e. (meta_batch_size, fast_batch_size, n_timestemps)
     """
 
     # info keys: reachDist, pickRew, epRew, goalDist, success, goal, task_name
-    n_tasks = len(episodes_infos)
+    # n_tasks = len(episodes_infos)
     n_episodes = len(episodes_infos[0])
     task_success_rate = dict()
 
     n_successes = 0
 
+    episodes_total = 0
     for task_infos in episodes_infos:
+        if 'task_name' not in task_infos[0][0]: continue  # noqa: E701
         # first episode, first timestamp
         task = task_infos[0][0]['task_name']
+        task = task.replace('Env', '')
+        task = task.replace('Sawyer', '')
         task_success_rate[task] = 0
 
         for episode_infos in task_infos:
+            episodes_total += 1
             for timestamp in episode_infos:
                 if timestamp and timestamp['success']:
                     task_success_rate[task] += 1
@@ -48,19 +60,16 @@ def get_success_rate(episodes_infos, per_task=False):
     for task, success in task_success_rate.items():
         task_success_rate[task] = success / n_episodes
 
-    n_successes /= (n_tasks * n_episodes)
+    n_successes /= episodes_total
     return n_successes, task_success_rate
 
 
 def main(args):
-    wandb.init()
-    wandb.config.update(args)
-
-    continuous_actions = (args.env_name in ['AntVel-v1', 'AntDir-v1',
+    continuous_actions = (args.env_name in {'AntVel-v1', 'AntDir-v1',
         'AntPos-v0', 'HalfCheetahVel-v1', 'HalfCheetahDir-v1',
-        '2DNavigation-v0', 'pick-place-v1', 'ml10', 'ml45'])
+        '2DNavigation-v0', 'pick-place-v1', 'ml10', 'ml45', 'ml2'})
 
-    save_folder = './saves/{0}'.format(args.output_folder)
+    save_folder = './saves/{0}'.format(args.output_folder + get_date_str())
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
     with open(os.path.join(save_folder, 'config.json'), 'w') as f:
@@ -68,8 +77,14 @@ def main(args):
         config.update(device=args.device.type)
         json.dump(config, f, indent=2)
 
+    print('Initializing samplers...')
+
     sampler = BatchSampler(args.env_name, batch_size=args.fast_batch_size,
-        num_workers=args.num_workers)
+                           num_workers=args.num_workers)
+
+    test_sampler = BatchSampler(args.env_name, test_env=True, batch_size=args.fast_batch_size,
+                                num_workers=args.num_workers)
+
     if continuous_actions:
         policy = NormalMLPPolicy(
             int(np.prod(sampler.envs.observation_space.shape)),
@@ -83,21 +98,36 @@ def main(args):
     baseline = LinearFeatureBaseline(
         int(np.prod(sampler.envs.observation_space.shape)))
 
-    wandb.watch(policy)
+    print('Initializing meta-learners...')
 
     metalearner = MetaLearner(sampler, policy, baseline, gamma=args.gamma,
         fast_lr=args.fast_lr, tau=args.tau, device=args.device)
 
-    # outer loop
-    for batch in range(args.num_batches):
+    # NOTE: we need this metalearner only for sampling
+    test_metalearner = MetaLearner(test_sampler, policy, baseline, gamma=args.gamma,
+        fast_lr=args.fast_lr, tau=args.tau, device=args.device)
+
+    print('Starting the training')
+
+    # Initialize logging
+    wandb.init()
+    wandb.config.update(args)
+    wandb.watch(policy)
+
+    # outer loop (meta-training)
+    for i in range(args.num_batches):
+        print(f'Batch {i}')
 
         # sample trajectories from random tasks
+        print(f'\tSampling a batch of {args.meta_batch_size} training tasks')
         tasks = sampler.sample_tasks(num_tasks=args.meta_batch_size)
 
-        # inner loop
+        # inner loop (adaptation)
         # returns list of tuples (train_episodes, valid_episodes)
+        print(f'\tTraining')
         episodes = metalearner.sample(tasks, first_order=args.first_order)
 
+        print(f'\tUpdating the meta-model')
         metalearner.step(episodes, max_kl=args.max_kl, cg_iters=args.cg_iters,
             cg_damping=args.cg_damping, ls_max_steps=args.ls_max_steps,
             ls_backtrack_ratio=args.ls_backtrack_ratio)
@@ -106,23 +136,47 @@ def main(args):
         r_before = total_rewards([ep.rewards for ep, _ in episodes])
         r_after = total_rewards([ep.rewards for _, ep in episodes])
 
+        test_episode_infos = [ep._info_list for _, ep in episodes]
         success_rate, task_success_rate = get_success_rate(
-            [ep._info_list for ep, _ in episodes],
-            per_task=True
+            test_episode_infos, per_task=True
         )
-
-        # writer.add_scalar('total_rewards/before_update', r_before, batch)
-        # writer.add_scalar('total_rewards/after_update', r_after, batch)
-
         wandb.log({'total_rewards/before_update': r_before,
-                   'total_rewards/after_update': r_after})
-        wandb.log({'success_rate/total': success_rate})
+                   'total_rewards/after_update': r_after,
+                   'success_rate/total': success_rate})
         wandb.log({f'success_rate/{task}': rate for task, rate in task_success_rate.items()})
 
-        # Save policy network
-        with open(os.path.join(save_folder,
-                'policy-{0}.pt'.format(batch)), 'wb') as f:
-            torch.save(policy.state_dict(), f)
+        # meta-test
+        if i and i % args.eval_every == 0:
+            print(f'Evaluating on meta-test')
+
+            # save policy network
+            with open(os.path.join(save_folder,
+                      'policy-{0}.pt'.format(i)), 'wb') as f:
+                torch.save(policy.state_dict(), f)
+
+            # Evaluate on meta-test
+            tasks = test_sampler.sample_tasks(num_tasks=5 * args.meta_batch_size)
+
+            episodes = test_metalearner.sample(tasks, first_order=args.first_order)
+
+            r_before = total_rewards([ep.rewards for ep, _ in episodes])
+            r_after = total_rewards([ep.rewards for _, ep in episodes])
+
+            test_episode_infos = [ep._info_list for _, ep in episodes]
+            success_rate, task_success_rate = get_success_rate(
+                test_episode_infos, per_task=True
+            )
+
+            wandb.log({'total_rewards_test/before_update': r_before,
+                       'total_rewards_test/after_update': r_after,
+                       'success_rate_test/total': success_rate})
+            wandb.log({f'success_rate_test/{task}': rate for task, rate in task_success_rate.items()})
+
+    print('Saving the final model')
+    # save final policy
+    with open(os.path.join(save_folder,
+              'policy-final.pt'), 'wb') as f:
+        torch.save(policy.state_dict(), f)
 
 
 if __name__ == '__main__':
@@ -131,7 +185,7 @@ if __name__ == '__main__':
     import multiprocessing as mp
 
     parser = argparse.ArgumentParser(description='Reinforcement learning with '
-        'Model-Agnostic Meta-Learning (MAML)')
+                                     'Model-Agnostic Meta-Learning (MAML)')
 
     # General
     parser.add_argument('--env-name', type=str,
@@ -157,9 +211,13 @@ if __name__ == '__main__':
 
     # Optimization
     parser.add_argument('--num-batches', type=int, default=200,
-        help='max episode length')  # !!!
+        help='number of batches to train on')
+    parser.add_argument('--eval-every', type=int, default=100,
+        help='number of batches between evaluation on meta-test')
+
     parser.add_argument('--meta-batch-size', type=int, default=40,
         help='number of tasks per batch')
+
     parser.add_argument('--max-kl', type=float, default=1e-2,
         help='maximum value for the KL constraint in TRPO')
     parser.add_argument('--cg-iters', type=int, default=10,

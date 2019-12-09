@@ -1,3 +1,16 @@
+To debug:
+
+```
+python main.py --env-name ml2 --fast-batch-size 5 --eval-every 2 --meta-batch-size 3
+```
+
+To run:
+
+```
+python main.py --env-name ml10  --num-batches 2000
+```
+
+
 # Reinforcement Learning with Model-Agnostic Meta-Learning (MAML)
 
 ![HalfCheetahDir](https://raw.githubusercontent.com/tristandeleu/pytorch-maml-rl/master/_assets/halfcheetahdir.gif)
