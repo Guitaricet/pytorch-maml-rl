@@ -5,7 +5,7 @@ import multiprocessing as mp
 from maml_rl.envs.subproc_vec_env import SubprocVecEnv
 from maml_rl.episode import BatchEpisodes
 
-from maml_rl.envs.metaworld import ML1, ML10, ML45, ML2
+from maml_rl.envs.metaworld import ML1, ML10, ML45, ML3
 
 
 def make_env(env_name, test_env=False):
@@ -16,8 +16,8 @@ def make_env(env_name, test_env=False):
             env_factory = ML10
         elif env_name == 'ml45':
             env_factory = ML45
-        elif env_name == 'ml2':
-            env_factory = ML2
+        elif env_name == 'ml3':
+            env_factory = ML3
 
         env = (env_factory.get_test_tasks() if test_env
                else env_factory.get_train_tasks())
@@ -51,16 +51,12 @@ class BatchSampler(object):
                 observations_tensor = torch.from_numpy(observations).to(device=device, dtype=torch.float32)
                 actions_tensor = policy(observations_tensor, params=params).sample()
                 actions = actions_tensor.cpu().numpy()
-            new_observations, rewards, dones, new_batch_ids, info = self.envs.step(actions)
+            new_observations, rewards, dones, new_batch_ids, infos = self.envs.step(actions)
             # info keys: reachDist, pickRew, epRew, goalDist, success, goal, task_name
 
-            # NOTE: some strange behaviour with absence of info, ignore for now
-            # if None in new_batch_ids:
-            #     print('None in batch_ids')
-            # if not info[0]:
-            #     import pdb; pdb.set_trace()
+            # NOTE: last infos will be absent if batch_size % num_workers != 0
 
-            episodes.append(observations, actions, rewards, batch_ids, info)
+            episodes.append(observations, actions, rewards, batch_ids, infos)
             observations, batch_ids = new_observations, new_batch_ids
         return episodes
 
@@ -69,6 +65,6 @@ class BatchSampler(object):
         reset = self.envs.reset_task(tasks)
         return all(reset)
 
-    def sample_tasks(self, num_tasks):
-        tasks = self._env.unwrapped.sample_tasks(num_tasks)
+    def sample_tasks(self, num_tasks, task2prob=None):
+        tasks = self._env.unwrapped.sample_tasks(num_tasks, task2prob)
         return tasks

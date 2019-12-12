@@ -93,15 +93,15 @@ class BatchEpisodes(object):
 
         return advantages
 
-    def append(self, observations, actions, rewards, batch_ids, info):
-        for observation, action, reward, batch_id in zip(
-                observations, actions, rewards, batch_ids):
+    def append(self, observations, actions, rewards, batch_ids, infos):
+        for observation, action, reward, batch_id, info in zip(
+                observations, actions, rewards, batch_ids, infos):
             if batch_id is None:
                 continue
             self._observations_list[batch_id].append(observation.astype(np.float32))
             self._actions_list[batch_id].append(action.astype(np.float32))
             self._rewards_list[batch_id].append(reward.astype(np.float32))
-            self._info_list[batch_id].append(info[0])  # info is a one-element tuple
+            self._info_list[batch_id].append(info)
 
     def __len__(self):
         return max(map(len, self._rewards_list))
