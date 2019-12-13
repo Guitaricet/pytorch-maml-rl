@@ -169,12 +169,22 @@ def main(args):
                   step=i)
 
         if args.active_learning:
+            if args.prob_f == 'linear':
+                new_task2prob = np.zeros_like(task2prob)
+                norm = 1e-7 + sum(task_success_rate_after.values())
+                for task, rate in task_success_rate_after.items():
+                    task_id = task_name2id[task]
+                    new_task2prob[task_id] = 1. - rate / norm
+            elif args.prob_f == 'softmax':
+                new_task2prob = np.zeros_like(task2prob)
+                for task, rate in task_success_rate_after.items():
+                    task_id = task_name2id[task]
+                    new_task2prob[task_id] = np.exp(rate)
 
-            new_task2prob = np.zeros_like(task2prob)
-            norm = 1e-7 + sum(task_success_rate_after.values())
-            for task, rate in task_success_rate_after.items():
-                task_id = task_name2id[task]
-                new_task2prob[task_id] = 1. - rate / norm
+                new_task2prob -= np.max(new_task2prob)  # numerical stability trick, http://cs231n.github.io/linear-classify/#softmax
+                new_task2prob = 1. - new_task2prob / (1e-7 + sum(new_task2prob))
+            else:
+                raise RuntimeError('prob-f should be either "softmax" or "linear"')
 
             alpha = args.success_rate_smoothing
             task2prob = alpha * task2prob + (1 - alpha) * new_task2prob
@@ -189,9 +199,10 @@ def main(args):
             print(f'Evaluating on meta-test')
 
             # save policy network
-            with open(os.path.join(save_folder,
-                      'policy-{0}.pt'.format(i)), 'wb') as f:
+            _save_path = os.path.join(save_folder, 'policy-{0}.pt'.format(i))
+            with open(_save_path, 'wb') as f:
                 torch.save(policy.state_dict(), f)
+            wandb.save(_save_path)
 
             # Evaluate on meta-test
             tasks = test_sampler.sample_tasks(num_tasks=2 * args.meta_batch_size)
@@ -229,9 +240,10 @@ def main(args):
 
     print('Saving the final model')
     # save final policy
-    with open(os.path.join(save_folder,
-              'policy-final.pt'), 'wb') as f:
+    _save_path = os.path.join(save_folder, 'policy-final.pt')
+    with open(_save_path, 'wb') as f:
         torch.save(policy.state_dict(), f)
+    wandb.save(_save_path)
 
 
 if __name__ == '__main__':
@@ -249,8 +261,6 @@ if __name__ == '__main__':
         help='value of the discount factor gamma')
     parser.add_argument('--tau', type=float, default=1.0,
         help='value of the discount factor for GAE')
-    parser.add_argument('--first-order', action='store_true',
-        help='use the first-order approximation of MAML')
 
     # Policy network (relu activation function)
     parser.add_argument('--hidden-size', type=int, default=100,
@@ -272,6 +282,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--meta-batch-size', type=int, default=40,
         help='number of tasks per batch')
+    parser.add_argument('--first-order', action='store_true',
+        help='use the first-order approximation of MAML')
 
     parser.add_argument('--max-kl', type=float, default=1e-2,
         help='maximum value for the KL constraint in TRPO')
@@ -298,7 +310,7 @@ if __name__ == '__main__':
     parser.add_argument('--active-learning', action='store_true')
     parser.add_argument('--success-rate-smoothing', type=float, default=0.95,
         help='exponential smoothing parameter for success rate if active-learning')
-    parser.add_argument('--prob-f', default='linear',
+    parser.add_argument('--prob-f', default='linear', choices=['linear', 'softmax'],
         help='Type of probability function. "linear" = x_i / sum(x_j) or "softmax"')
 
     args = parser.parse_args()

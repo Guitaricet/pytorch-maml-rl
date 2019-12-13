@@ -1,13 +1,13 @@
 To debug:
 
 ```
-python main.py --env-name ml3 --fast-batch-size 5 --eval-every 2 --meta-batch-size 3
+python main.py --env-name ml3 --fast-batch-size 5 --eval-every 2 --meta-batch-size 3 --active-learning  --prob-f softmax
 ```
 
 To run:
 
 ```
-python main.py --env-name ml10 --num-batches 2000 --eval-every 50 --active-learning  --prob-f softmax
+python main.py --env-name ml10 --num-batches 2000 --eval-every 50 --active-learning  --prob-f softmax --output-folder active_maml12_12
 ```
 
 
