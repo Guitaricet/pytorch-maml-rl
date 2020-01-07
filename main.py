@@ -7,7 +7,6 @@ import torch
 import wandb
 import numpy as np
 
-from tensorboardX import SummaryWriter
 
 import maml_rl.envs
 from maml_rl.metalearner import MetaLearner
@@ -169,22 +168,32 @@ def main(args):
                   step=i)
 
         if args.active_learning:
+            new_task2prob = np.zeros_like(task2prob)
+
             if args.prob_f == 'linear':
-                new_task2prob = np.zeros_like(task2prob)
                 norm = 1e-7 + sum(task_success_rate_after.values())
                 for task, rate in task_success_rate_after.items():
                     task_id = task_name2id[task]
                     new_task2prob[task_id] = 1. - rate / norm
-            elif args.prob_f == 'softmax':
-                new_task2prob = np.zeros_like(task2prob)
+
+            elif args.prob_f == 'softmax':  # softmax(1 - rate)
+                max_f = 1 - min(task_success_rate_after.values())  # numerical stability trick, http://cs231n.github.io/linear-classify/#softmax
                 for task, rate in task_success_rate_after.items():
                     task_id = task_name2id[task]
-                    new_task2prob[task_id] = np.exp(rate)
+                    f = 1 - rate
+                    new_task2prob[task_id] = np.exp((f - max_f) / args.temperature)
 
-                new_task2prob -= np.max(new_task2prob)  # numerical stability trick, http://cs231n.github.io/linear-classify/#softmax
+                new_task2prob = new_task2prob / (1e-7 + sum(new_task2prob))
+
+            elif args.prob_f == 'softmax2':  # 1 - softmax(rate)
+                max_f = max(task_success_rate_after.values())
+                for task, rate in task_success_rate_after.items():
+                    task_id = task_name2id[task]
+                    new_task2prob[task_id] = np.exp((rate - max_f) / args.temperature)
+
                 new_task2prob = 1. - new_task2prob / (1e-7 + sum(new_task2prob))
             else:
-                raise RuntimeError('prob-f should be either "softmax" or "linear"')
+                raise RuntimeError('prob-f should be either "softmax", "softmax2" or "linear"')
 
             alpha = args.success_rate_smoothing
             task2prob = alpha * task2prob + (1 - alpha) * new_task2prob
@@ -310,8 +319,11 @@ if __name__ == '__main__':
     parser.add_argument('--active-learning', action='store_true')
     parser.add_argument('--success-rate-smoothing', type=float, default=0.95,
         help='exponential smoothing parameter for success rate if active-learning')
-    parser.add_argument('--prob-f', default='linear', choices=['linear', 'softmax'],
-        help='Type of probability function. "linear" = x_i / sum(x_j) or "softmax"')
+    parser.add_argument('--prob-f', default='linear', choices=['linear', 'softmax', 'softmax2'],
+        help=('Type of probability function. "linear" = x_i / sum(x_j) or ',
+              '"softmax" = softmax(1-rate) or "softmax2" = 1 - softmax(rate)"')
+    parser.add_argument('--temperature', type=float, default=1.,
+        help='Softmax temperature')
 
     args = parser.parse_args()
 
