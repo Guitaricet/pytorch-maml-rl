@@ -1,16 +1,13 @@
 import json
 from datetime import datetime
-from collections import defaultdict
 
-import gym
 import torch
 import wandb
 import numpy as np
 
 
-import maml_rl.envs
 from maml_rl.metalearner import MetaLearner
-from maml_rl.policies import CategoricalMLPPolicy, NormalMLPPolicy
+from maml_rl.policies import NormalMLPPolicy
 from maml_rl.baseline import LinearFeatureBaseline
 from maml_rl.sampler import BatchSampler
 
@@ -320,8 +317,8 @@ if __name__ == '__main__':
     parser.add_argument('--success-rate-smoothing', type=float, default=0.95,
         help='exponential smoothing parameter for success rate if active-learning')
     parser.add_argument('--prob-f', default='linear', choices=['linear', 'softmax', 'softmax2'],
-        help=('Type of probability function. "linear" = x_i / sum(x_j) or ',
-              '"softmax" = softmax(1-rate) or "softmax2" = 1 - softmax(rate)"')
+        help=('Type of probability function. "linear" = x_i / sum(x_j) or '
+              '"softmax" = softmax(1-rate) or "softmax2" = 1 - softmax(rate)"'))
     parser.add_argument('--temperature', type=float, default=1.,
         help='Softmax temperature')
 
