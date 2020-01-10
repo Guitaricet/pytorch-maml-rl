@@ -194,6 +194,8 @@ def main(args):
 
             alpha = args.success_rate_smoothing
             task2prob = alpha * task2prob + (1 - alpha) * new_task2prob
+            task2prob = 0.99 * task2prob + 0.01 * np.ones_like(task2prob)  # min prob of 0.01 guarantee
+
             task2prob /= sum(task2prob)
             assert all(task2prob > 0)  # strictly!
 
