@@ -156,7 +156,9 @@ def main(args):
                    'total_rewards/after_update': r_after,
                    'success_rate/before_update': success_rate_before,
                    'success_rate/after_update': success_rate_after,
-                   'success_rate/improvement': success_rate_after - success_rate_before},
+                   'success_rate/improvement': success_rate_after - success_rate_before,
+                   'success_rate/before_update_macro': np.mean(task_success_rate_before.values())
+                   'success_rate/after_update_macro': np.mean(task_success_rate_after.items())},
                   step=i)
         wandb.log({f'success_rate/after_update/{task}': rate for task, rate in task_success_rate_after.items()},
                   step=i)
@@ -165,6 +167,10 @@ def main(args):
         wandb.log({f'success_rate/imrovement/{task}': task_success_rate_after[task] - task_success_rate_before[task]
                   for task in task_success_rate_before.keys()},
                   step=i)
+        wandb.log({f'n_acquired_tasks/before_update/at_{}': sum(rate > x for rate in task_success_rate_before.values())
+                   for x in [0.001, 0.01, 0.05, 0.1, 0.5]})
+        wandb.log({f'n_acquired_tasks/after_update/at_{}': sum(rate > x for rate in task_success_rate_after.values())
+                   for x in [0.001, 0.01, 0.05, 0.1, 0.5]})
 
         if args.active_learning:
             new_task2prob = np.zeros_like(task2prob)
