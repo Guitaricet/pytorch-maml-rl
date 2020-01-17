@@ -112,6 +112,7 @@ def main(args):
     task_name2id = {name: i for i, name in enumerate(sampler._env._task_names)}
     task_id2name = sampler._env._task_names
     task2prob = np.ones(sampler._env.num_tasks) / sampler._env.num_tasks
+    uniform = np.ones_like(task2prob)
 
     # outer loop (meta-training)
     for i in range(args.num_batches):
@@ -119,7 +120,8 @@ def main(args):
 
         # sample trajectories from random tasks
         print(f'\tSampling a batch of {args.meta_batch_size} training tasks')
-        tasks = sampler.sample_tasks(num_tasks=args.meta_batch_size, task2prob=task2prob)
+        tasks = sampler.sample_tasks(num_tasks=args.meta_batch_size,
+                                     task2prob=0.99 * task2prob + 0.01 * uniform)
         # Note: Dirty hack to overcome metaworld dirty hack
         task_names = [sampler._env._task_names[t['task']] for t in tasks]
 
@@ -194,7 +196,6 @@ def main(args):
 
             alpha = args.success_rate_smoothing
             task2prob = alpha * task2prob + (1 - alpha) * new_task2prob
-            task2prob = 0.99 * task2prob + 0.01 * np.ones_like(task2prob)  # min prob of 0.01 guarantee
 
             task2prob /= sum(task2prob)
             assert all(task2prob > 0)  # strictly!
