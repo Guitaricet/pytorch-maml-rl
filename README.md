@@ -1,13 +1,25 @@
 To debug:
 
 ```
-python main.py --env-name ml3 --fast-batch-size 5 --eval-every 2 --meta-batch-size 3 --active-learning  --prob-f softmax
+python main.py --env-name ml3 --fast-batch-size 5 --eval-every 2 --meta-batch-size 3 --active-learning  --prob-f softmax --num-workers 2
+```
+
+OR
+
+```
+python main.py --env-name ml3 --num-batches 10 --meta-batch-size 3 --eval-every 2 --output-folder /dev/null --num-workers 2 --fast-batch-size 5
 ```
 
 To run:
 
 ```
 python main.py --env-name ml10 --num-batches 2000 --eval-every 50 --active-learning  --prob-f softmax --output-folder active_maml12_12
+```
+
+OR
+
+```
+python main.py --env-name pick-place-v1 --num-batches 2000 --eval-every 100 --output-folder maml12_02 --num-workers 16
 ```
 
 

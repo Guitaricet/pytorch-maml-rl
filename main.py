@@ -84,7 +84,7 @@ def main(args):
                            num_workers=args.num_workers)
 
     test_sampler = BatchSampler(args.env_name, test_env=True, batch_size=args.fast_batch_size,
-                                num_workers=args.num_workers)
+                                num_workers=max(1, args.num_workers // 2))
 
     policy = NormalMLPPolicy(
         int(np.prod(sampler.envs.observation_space.shape)),
@@ -99,7 +99,7 @@ def main(args):
     metalearner = MetaLearner(sampler, policy, baseline, gamma=args.gamma,
         fast_lr=args.fast_lr, tau=args.tau, device=args.device)
 
-    # NOTE: we need this metalearner only for sampling
+    # NOTE: we need this metalearner only to sample test tasks
     test_metalearner = MetaLearner(test_sampler, policy, baseline, gamma=args.gamma,
         fast_lr=args.fast_lr, tau=args.tau, device=args.device)
 
@@ -112,7 +112,7 @@ def main(args):
     task_name2id = {name: i for i, name in enumerate(sampler._env._task_names)}
     task_id2name = sampler._env._task_names
     task2prob = np.ones(sampler._env.num_tasks) / sampler._env.num_tasks
-    uniform = np.ones_like(task2prob)
+    uniform = np.ones_like(task2prob) / sampler._env.num_tasks
 
     # outer loop (meta-training)
     for i in range(args.num_batches):
@@ -157,8 +157,9 @@ def main(args):
                    'success_rate/before_update': success_rate_before,
                    'success_rate/after_update': success_rate_after,
                    'success_rate/improvement': success_rate_after - success_rate_before,
-                   'success_rate/before_update_macro': np.mean(task_success_rate_before.values()),
-                   'success_rate/after_update_macro': np.mean(task_success_rate_after.items())},
+                   'success_rate/before_update_macro': np.mean(list(task_success_rate_before.values())),
+                   'success_rate/after_update_macro': np.mean(list(task_success_rate_after.values())),
+                   },
                   step=i)
         wandb.log({f'success_rate/after_update/{task}': rate for task, rate in task_success_rate_after.items()},
                   step=i)
@@ -168,9 +169,11 @@ def main(args):
                   for task in task_success_rate_before.keys()},
                   step=i)
         wandb.log({f'n_acquired_tasks/before_update/at_{x}': sum(rate > x for rate in task_success_rate_before.values())
-                   for x in [0.001, 0.01, 0.05, 0.1, 0.5]})
+                   for x in [0.001, 0.01, 0.05, 0.1, 0.5]},
+                  step=i)
         wandb.log({f'n_acquired_tasks/after_update/at_{x}': sum(rate > x for rate in task_success_rate_after.values())
-                   for x in [0.001, 0.01, 0.05, 0.1, 0.5]})
+                   for x in [0.001, 0.01, 0.05, 0.1, 0.5]},
+                  step=i)
 
         if args.active_learning:
             new_task2prob = np.zeros_like(task2prob)
@@ -270,7 +273,7 @@ if __name__ == '__main__':
                                      'Model-Agnostic Meta-Learning (MAML)')
 
     # General
-    parser.add_argument('--env-name', type=str,
+    parser.add_argument('--env-name', type=str.lower,
         help='name of the environment')
     parser.add_argument('--gamma', type=float, default=0.95,
         help='value of the discount factor gamma')

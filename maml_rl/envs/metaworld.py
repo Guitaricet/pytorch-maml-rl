@@ -54,7 +54,7 @@ def sample_tasks(mcmt_env, meta_batch_size, task2prob=None):
 class ML1(benchmarks.ML1):
     def reset_task(self, task):
         self.set_task(task)
-    
+
     def sample_tasks(self, meta_batch_size, task2prob=None):
         return sample_tasks(self, meta_batch_size, task2prob)
 

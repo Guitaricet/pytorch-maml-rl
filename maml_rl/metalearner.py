@@ -74,6 +74,8 @@ class MetaLearner(object):
         """
         episodes = []
         for task in tasks:
+            # TODO: multi-step adaptation
+            # TODO: multi-step objective
             self.sampler.reset_task(task)
             train_episodes = self.sampler.sample(self.policy,
                 gamma=self.gamma, device=self.device)

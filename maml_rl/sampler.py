@@ -10,7 +10,6 @@ from maml_rl.envs.metaworld import ML1, ML10, ML45, ML3
 
 def make_env(env_name, test_env=False):
     def _make_env():
-        env_factory = ML1
 
         if env_name == 'ml10':
             env_factory = ML10
@@ -18,6 +17,10 @@ def make_env(env_name, test_env=False):
             env_factory = ML45
         elif env_name == 'ml3':
             env_factory = ML3
+        else:
+            print(f'[INFO] using ML1 with task {env_name}')
+            print(f'[INFO] train and test task are the same in ML1')
+            return ML1.get_train_tasks(env_name)
 
         env = (env_factory.get_test_tasks() if test_env
                else env_factory.get_train_tasks())
