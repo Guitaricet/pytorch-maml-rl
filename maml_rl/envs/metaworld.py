@@ -14,6 +14,7 @@ from metaworld.envs.mujoco.sawyer_xyz.sawyer_door_close import SawyerDoorCloseEn
 from metaworld.envs.mujoco.sawyer_xyz.sawyer_drawer_open import SawyerDrawerOpenEnv
 from metaworld.envs.mujoco.sawyer_xyz.sawyer_reach_push_pick_place import SawyerReachPushPickPlaceEnv
 from metaworld.envs.mujoco.sawyer_xyz.sawyer_peg_insertion_side import SawyerPegInsertionSideEnv
+from metaworld.envs.mujoco.env_dict import HARD_MODE_CLS_DICT, HARD_MODE_ARGS_KWARGS
 
 
 def sample_tasks(mcmt_env, meta_batch_size, task2prob=None):
@@ -74,7 +75,8 @@ class ML45(benchmarks.ML45):
     def sample_tasks(self, meta_batch_size, task2prob=None):
         return sample_tasks(self, meta_batch_size, task2prob)
 
-# Very small (2 train 2 test tasks) environment for debug purposes
+
+# Very small (3 train 2 test tasks) environment for debug purposes
 
 
 DEBUG_MODE_CLS_DICT = dict(
@@ -114,6 +116,31 @@ class ML3(MultiClassMultiTaskEnv, Benchmark, Serializable):
 
         cls_dict = DEBUG_MODE_CLS_DICT[env_type]
         args_kwargs = DEBUG_MODE_ARGS_KWARGS[env_type]
+
+        super().__init__(
+            task_env_cls_dict=cls_dict,
+            task_args_kwargs=args_kwargs,
+            sample_goals=True,
+            obs_type='plain',
+            sample_all=sample_all)
+
+    def reset_task(self, task):
+        self.set_task(task)
+
+    def sample_tasks(self, meta_batch_size, task2prob=None):
+        return sample_tasks(self, meta_batch_size, task2prob)
+
+
+# Allows to create ML env with any subset of tasks from ML50
+
+ALL_TASKS = dict(**HARD_MODE_CLS_DICT['train'], **HARD_MODE_CLS_DICT['test'])
+ALL_ARGS_KWARGS = dict(**HARD_MODE_ARGS_KWARGS['train'], **HARD_MODE_ARGS_KWARGS['test'])
+
+
+class MLList(MultiClassMultiTaskEnv, Benchmark, Serializable):
+    def __init__(self, tasks, sample_all=False):
+        cls_dict = {k: v for k, v in ALL_TASKS.items() if k in tasks}
+        args_kwargs = {k: v for k, v in ALL_ARGS_KWARGS if k in tasks}
 
         super().__init__(
             task_env_cls_dict=cls_dict,

@@ -11,8 +11,6 @@ from maml_rl.policies import NormalMLPPolicy
 from maml_rl.baseline import LinearFeatureBaseline
 from maml_rl.sampler import BatchSampler
 
-from maml_rl.cfg import ENV_TO_TASK
-
 
 def get_date_str():
     d = datetime.now()
@@ -26,8 +24,12 @@ def short_name(task):
 
 
 def total_rewards(episodes_rewards, aggregation=torch.mean):
-    rewards = torch.mean(torch.stack([aggregation(torch.sum(rewards, dim=0))
-        for rewards in episodes_rewards], dim=0))
+    rewards = torch.mean(
+        torch.stack(
+            [aggregation(torch.sum(rewards, dim=0)) for rewards in episodes_rewards],
+            dim=0
+        )
+    )
     return rewards.item()
 
 
@@ -97,11 +99,11 @@ def main(args):
     print('Initializing meta-learners...')
 
     metalearner = MetaLearner(sampler, policy, baseline, gamma=args.gamma,
-        fast_lr=args.fast_lr, tau=args.tau, device=args.device)
+        fast_lr=args.fast_lr, tau=args.tau, device=args.device)  # noqa: E128
 
     # NOTE: we need this metalearner only to sample test tasks
     test_metalearner = MetaLearner(test_sampler, policy, baseline, gamma=args.gamma,
-        fast_lr=args.fast_lr, tau=args.tau, device=args.device)
+        fast_lr=args.fast_lr, tau=args.tau, device=args.device)   # noqa: E128
 
     print('Starting the training')
 
@@ -131,9 +133,14 @@ def main(args):
         episodes = metalearner.sample(tasks, first_order=args.first_order)
 
         print(f'\tUpdating the meta-model')
-        metalearner.step(episodes, max_kl=args.max_kl, cg_iters=args.cg_iters,
-            cg_damping=args.cg_damping, ls_max_steps=args.ls_max_steps,
-            ls_backtrack_ratio=args.ls_backtrack_ratio)
+        metalearner.step(
+            episodes,
+            max_kl=args.max_kl,
+            cg_iters=args.cg_iters,
+            cg_damping=args.cg_damping,
+            ls_max_steps=args.ls_max_steps,
+            ls_backtrack_ratio=args.ls_backtrack_ratio
+        )
 
         # Logging
         # before: before parameters update
@@ -185,7 +192,9 @@ def main(args):
                     new_task2prob[task_id] = 1. - rate / norm
 
             elif args.prob_f == 'softmax':  # softmax(1 - rate)
-                max_f = 1 - min(task_success_rate_after.values())  # numerical stability trick, http://cs231n.github.io/linear-classify/#softmax
+                # numerical stability trick
+                # http://cs231n.github.io/linear-classify/#softmax
+                max_f = 1 - min(task_success_rate_after.values())
                 for task, rate in task_success_rate_after.items():
                     task_id = task_name2id[task]
                     f = 1 - rate
@@ -248,11 +257,12 @@ def main(args):
                        'success_rate_test/after_update': success_rate_after,
                        'success_rate_test/improvement': success_rate_after - success_rate_before},
                       step=i)
-            wandb.log({f'success_rate_test/after_update/{task}': rate for task, rate in task_success_rate_after.items()},
+            wandb.log({f'success_rate_test/after_update/{task}': rate for task, rate in task_success_rate_after.items()},  # noqa: E501
                       step=i)
-            wandb.log({f'success_rate_test/before_update/{task}': rate for task, rate in task_success_rate_before.items()},
+            wandb.log({f'success_rate_test/before_update/{task}': rate for task, rate in task_success_rate_before.items()},  # noqa: E501
                       step=i)
-            wandb.log({f'success_rate_test/imrovement/{task}': task_success_rate_after[task] - task_success_rate_before[task]
+            wandb.log({f'success_rate_test/imrovement/{task}':
+                       task_success_rate_after[task] - task_success_rate_before[task]
                       for task in task_success_rate_before.keys()},
                       step=i)
 
@@ -342,8 +352,7 @@ if __name__ == '__main__':
     if not os.path.exists('./saves'):
         os.makedirs('./saves')
     # Device
-    args.device = torch.device(args.device
-        if torch.cuda.is_available() else 'cpu')
+    args.device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
     # Slurm
     if 'SLURM_JOB_ID' in os.environ:
         args.output_folder += '-{0}'.format(os.environ['SLURM_JOB_ID'])
