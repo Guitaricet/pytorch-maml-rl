@@ -49,7 +49,7 @@ class TabularMDPEnv(gym.Env):
             for (transition, reward_mean) in zip(transitions, rewards_mean)]
         return tasks
 
-    def reset_task(self, task):
+    def set_task(self, task):
         self._task = task
         self._transitions = task['transitions']
         self._rewards_mean = task['rewards_mean']

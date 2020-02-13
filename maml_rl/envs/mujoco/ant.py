@@ -91,7 +91,7 @@ class AntVelEnv(AntEnv):
         tasks = [{'velocity': velocity} for velocity in velocities]
         return tasks
 
-    def reset_task(self, task):
+    def set_task(self, task):
         self._task = task
         self._goal_vel = task['velocity']
 
@@ -148,7 +148,7 @@ class AntDirEnv(AntEnv):
         tasks = [{'direction': direction} for direction in directions]
         return tasks
 
-    def reset_task(self, task):
+    def set_task(self, task):
         self._task = task
         self._goal_dir = task['direction']
 
@@ -199,6 +199,6 @@ class AntPosEnv(AntEnv):
         tasks = [{'position': position} for position in positions]
         return tasks
 
-    def reset_task(self, task):
+    def set_task(self, task):
         self._task = task
         self._goal_pos = task['position']

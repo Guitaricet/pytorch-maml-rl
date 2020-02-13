@@ -71,7 +71,7 @@ class HalfCheetahVelEnv(HalfCheetahEnv):
         tasks = [{'velocity': velocity} for velocity in velocities]
         return tasks
 
-    def reset_task(self, task):
+    def set_task(self, task):
         self._task = task
         self._goal_vel = task['velocity']
 
@@ -119,6 +119,6 @@ class HalfCheetahDirEnv(HalfCheetahEnv):
         tasks = [{'direction': direction} for direction in directions]
         return tasks
 
-    def reset_task(self, task):
+    def set_task(self, task):
         self._task = task
         self._goal_dir = task['direction']

@@ -19,7 +19,6 @@ def make_env(env_name, test_env=False):
             env_factory = ML3
         else:
             print(f'[INFO] using ML1 with task {env_name}')
-            print(f'[INFO] train and test task are the same in ML1')
             return ML1.get_train_tasks(env_name)
 
         env = (env_factory.get_test_tasks() if test_env
@@ -63,9 +62,9 @@ class BatchSampler(object):
             observations, batch_ids = new_observations, new_batch_ids
         return episodes
 
-    def reset_task(self, task):
+    def set_task(self, task):
         tasks = [task for _ in range(self.num_workers)]
-        reset = self.envs.reset_task(tasks)
+        reset = self.envs.set_task(tasks)
         return all(reset)
 
     def sample_tasks(self, num_tasks, task2prob=None):

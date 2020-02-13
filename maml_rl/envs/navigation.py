@@ -40,7 +40,7 @@ class Navigation2DEnv(gym.Env):
         tasks = [{'goal': goal} for goal in goals]
         return tasks
 
-    def reset_task(self, task):
+    def set_task(self, task):
         self._task = task
         self._goal = task['goal']
 

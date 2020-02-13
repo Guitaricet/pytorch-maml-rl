@@ -38,7 +38,7 @@ class BernoulliBanditEnv(gym.Env):
         tasks = [{'mean': mean} for mean in means]
         return tasks
 
-    def reset_task(self, task):
+    def set_task(self, task):
         self._task = task
         self._means = task['mean']
 
@@ -84,7 +84,7 @@ class GaussianBanditEnv(gym.Env):
         tasks = [{'mean': mean} for mean in means]
         return tasks
 
-    def reset_task(self, task):
+    def set_task(self, task):
         self._task = task
         self._means = task['mean']
 
